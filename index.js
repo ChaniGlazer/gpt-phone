@@ -1,152 +1,24 @@
-const express = require('express');
-const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const { OpenAI } = require('openai');
 const axios = require('axios');
+const express = require('express');
+const { OpenAI } = require('openai');
 
 const app = express();
 const port = process.env.PORT || 3000;
-const upload = multer({ dest: 'uploads/' });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// פרסור נתוני JSON ו-urlencoded (חשוב לקבל נתונים ב-POST)
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-// נקודת קצה חדשה לקבלת קובץ שמע מצורף ישירות מהבקשה (POST)
-app.post('/YemotApiFile', upload.single('audio'), async (req, res) => {
-  console.log('קיבלנו קובץ שמע ישירות מימות המשיח');
+app.get('/yemot-manual-download', async (req, res) => {
+  const token = '0774430795:325916039';
+  const pathFromYemot = 'ivr2:/1/000.wav';
 
-  if (!req.file) {
-    console.log('לא התקבל קובץ שמע');
-    return res.status(400).send('לא התקבל קובץ שמע');
-  }
-
-  const originalExtension = path.extname(req.file.originalname) || '.mp3';
-  const newPath = req.file.path + originalExtension;
-
-  fs.renameSync(req.file.path, newPath);
-  console.log('שמרנו את הקובץ עם סיומת:', newPath);
+  const downloadUrl = `https://www.call2all.co.il/ym/api/DownloadFile?token=${token}&path=${encodeURIComponent(pathFromYemot)}`;
+  const localFilePath = path.join(__dirname, 'uploads', '000.wav');
 
   try {
-    // תמלול הקובץ
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(newPath),
-      model: 'whisper-1',
-    });
-
-    console.log('תמלול הצליח:', transcription.text);
-
-    // שליחת הטקסט ל-ChatGPT
-    const chatResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות.'
-        },
-        {
-          role: 'user',
-          content: transcription.text
-        }
-      ],
-    });
-
-    const answer = chatResponse.choices[0].message.content;
-    console.log('תשובת GPT:', answer);
-
-    // כאן אפשר גם להחזיר תשובה או לעשות איתה משהו נוסף
-    res.send({
-      transcription: transcription.text,
-      answer: answer,
-    });
-
-  } catch (err) {
-    console.error('שגיאה בעיבוד קובץ שמע מימות:', err);
-    res.status(500).send('שגיאה בעיבוד הקובץ: ' + err.message);
-  }
-});
-
-
-// הקוד הקיים שלך לקבלת קובץ דרך טופס
-app.post('/upload', upload.single('audio'), async (req, res) => {
-  console.log('קיבלנו בקשה להעלאת קובץ');
-
-  if (!req.file) {
-    console.log('אין קובץ בבקשה');
-    return res.status(400).send('לא התקבל קובץ');
-  }
-
-  const originalExtension = path.extname(req.file.originalname) || '.mp3';
-  const newPath = req.file.path + originalExtension;
-
-  // שנה את שם הקובץ עם סיומת
-  fs.renameSync(req.file.path, newPath);
-  console.log('נתיב הקובץ עם סיומת:', newPath);
-
-  try {
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(newPath),
-      model: 'whisper-1',
-    });
-
-    console.log('המרה הצליחה:', transcription.text);
-
-    const chatResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות.'
-        },
-        {
-          role: 'user',
-          content: transcription.text
-        }
-      ],
-    });
-
-    const answer = chatResponse.choices[0].message.content;
-    console.log('תשובת הצ׳אט:', answer);
-
-    res.send({
-      transcription: transcription.text,
-      answer: answer,
-    });
-  } catch (err) {
-    console.error('שגיאה בקריאת OpenAI:', err);
-    res.status(500).send('שגיאה בעיבוד הקובץ: ' + err.message);
-  }
-});
-
-// הוספה: endpoint לקבלת קריאות מה-API של ימות המשיח
-app.all('/YemotApi', async (req, res) => {
-  const params = req.method === 'GET' ? req.query : req.body;
-
-  console.log('קיבלנו בקשה מימות המשיח:', params);
-
-  // זיהוי ניתוק שיחה
-  if (params.hangup === 'yes') {
-    console.log('שיחה נותקה בשלוחה:', params.ApiHangupExtension);
-    return res.send('OK');
-  }
-
-  // להחליף את שם הפרמטר לפי תיעוד ימות המשיח המדויק
-  const audioUrl = params.audio_url || params.audioUrl;
-
-  if (!audioUrl) {
-    return res.status(400).send('לא נשלח URL של קובץ שמע');
-  }
-
-  try {
-    const tempFilePath = path.join(__dirname, 'uploads', 'audio_from_yemot.mp3');
-
-    // הורדת קובץ השמע מה-URL שנשלח
-    const writer = fs.createWriteStream(tempFilePath);
-    const response = await axios.get(audioUrl, { responseType: 'stream' });
+    const writer = fs.createWriteStream(localFilePath);
+    const response = await axios.get(downloadUrl, { responseType: 'stream' });
     response.data.pipe(writer);
 
     await new Promise((resolve, reject) => {
@@ -156,13 +28,11 @@ app.all('/YemotApi', async (req, res) => {
 
     // תמלול עם Whisper
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(tempFilePath),
+      file: fs.createReadStream(localFilePath),
       model: 'whisper-1',
     });
 
-    console.log('תמלול ימות המשיח:', transcription.text);
-
-    // שליחת הטקסט ל-ChatGPT
+    // שיחה עם GPT
     const chatResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -174,18 +44,19 @@ app.all('/YemotApi', async (req, res) => {
           role: 'user',
           content: transcription.text
         }
-      ],
+      ]
     });
 
     const answer = chatResponse.choices[0].message.content;
-    console.log('תשובת ChatGPT לימות המשיח:', answer);
 
-    // כאן אפשר להחזיר תשובה למערכת ימות המשיח (אם צריך)
-    res.send('OK');
+    res.send({
+      transcription: transcription.text,
+      answer
+    });
 
   } catch (err) {
-    console.error('שגיאה בטיפול בקריאת ימות המשיח:', err);
-    res.status(500).send('שגיאה בעיבוד הקובץ');
+    console.error('שגיאה:', err.message);
+    res.status(500).send('שגיאה: ' + err.message);
   }
 });
 
