@@ -15,8 +15,8 @@ app.get('/yemot-manual-download', async (req, res) => {
 
   const downloadUrl = `https://www.call2all.co.il/ym/api/DownloadFile?token=${token}&path=${encodeURIComponent(pathFromYemot)}`;
   const localFilePath = path.join(__dirname, 'uploads', '000.wav');
-  console.log('מוריד קובץ מ:', downloadUrl);
-  console.log('שומר אל:', localFilePath);
+  console.error('שגיאה מלאה:', err);
+
 
   try {
     const writer = fs.createWriteStream(localFilePath);
