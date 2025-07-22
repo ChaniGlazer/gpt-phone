@@ -16,6 +16,60 @@ const openai = new OpenAI({
 // פרסור נתוני JSON ו-urlencoded (חשוב לקבל נתונים ב-POST)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// נקודת קצה חדשה לקבלת קובץ שמע מצורף ישירות מהבקשה (POST)
+app.post('/YemotApiFile', upload.single('audio'), async (req, res) => {
+  console.log('קיבלנו קובץ שמע ישירות מימות המשיח');
+
+  if (!req.file) {
+    console.log('לא התקבל קובץ שמע');
+    return res.status(400).send('לא התקבל קובץ שמע');
+  }
+
+  const originalExtension = path.extname(req.file.originalname) || '.mp3';
+  const newPath = req.file.path + originalExtension;
+
+  fs.renameSync(req.file.path, newPath);
+  console.log('שמרנו את הקובץ עם סיומת:', newPath);
+
+  try {
+    // תמלול הקובץ
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(newPath),
+      model: 'whisper-1',
+    });
+
+    console.log('תמלול הצליח:', transcription.text);
+
+    // שליחת הטקסט ל-ChatGPT
+    const chatResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות.'
+        },
+        {
+          role: 'user',
+          content: transcription.text
+        }
+      ],
+    });
+
+    const answer = chatResponse.choices[0].message.content;
+    console.log('תשובת GPT:', answer);
+
+    // כאן אפשר גם להחזיר תשובה או לעשות איתה משהו נוסף
+    res.send({
+      transcription: transcription.text,
+      answer: answer,
+    });
+
+  } catch (err) {
+    console.error('שגיאה בעיבוד קובץ שמע מימות:', err);
+    res.status(500).send('שגיאה בעיבוד הקובץ: ' + err.message);
+  }
+});
+
 
 // הקוד הקיים שלך לקבלת קובץ דרך טופס
 app.post('/upload', upload.single('audio'), async (req, res) => {
