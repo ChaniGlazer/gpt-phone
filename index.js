@@ -60,6 +60,9 @@ app.get('/yemot-manual-download', async (req, res) => {
   }
 });
 
+console.log('מוריד קובץ מ:', downloadUrl);
+console.log('שומר אל:', localFilePath);
+
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
 });
