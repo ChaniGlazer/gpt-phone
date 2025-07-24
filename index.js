@@ -2,18 +2,20 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const express = require('express');
+require('dotenv').config();
 const { OpenAI } = require('openai');
+const FormData = require('form-data');
+const util = require('util');
+const textToSpeech = require('@google-cloud/text-to-speech');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ttsClient = new textToSpeech.TextToSpeechClient();
 
-// משתנה סופר
 let fileIndex = 0;
 let isProcessing = false;
-
-// שמירת תוצאות אחרונות
 const results = [];
 
 function padNumber(num) {
@@ -24,24 +26,31 @@ async function checkAndProcessNextFile() {
   if (isProcessing) return;
   isProcessing = true;
 
-  const token = '0774430795:325916039';
+  const token = process.env.YEMOT_TOKEN || '0774430795:325916039'; // שמור בטוח בקובץ .env
   const fileName = padNumber(fileIndex) + '.wav';
-  const pathFromYemot = `ivr2:/1/${fileName}`;
-  const downloadUrl = `https://www.call2all.co.il/ym/api/DownloadFile?token=${token}&path=${encodeURIComponent(pathFromYemot)}`;
-  const localFilePath = path.join(__dirname, 'uploads', fileName);
+  const yemotPath = `ivr2:/1/${fileName}`;
+  const downloadUrl = `https://www.call2all.co.il/ym/api/DownloadFile?token=${token}&path=${encodeURIComponent(yemotPath)}`;
+  const uploadsDir = path.join(__dirname, 'uploads');
+  const localFilePath = path.join(uploadsDir, fileName);
 
   try {
-    const response = await axios.get(downloadUrl, { responseType: 'stream' });
+    // ודא שספריית uploads קיימת
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir);
+    }
 
+    const response = await axios.get(downloadUrl, { responseType: 'stream' });
     const writer = fs.createWriteStream(localFilePath);
     response.data.pipe(writer);
+
     await new Promise((resolve, reject) => {
       writer.on('finish', resolve);
       writer.on('error', reject);
     });
 
-    console.log(`✅ קובץ ${fileName} הורד בהצלחה`);
+    console.log(`✅ קובץ ${fileName} הורד`);
 
+    // תמלול
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(localFilePath),
       model: 'whisper-1',
@@ -54,46 +63,66 @@ async function checkAndProcessNextFile() {
       messages: [
         {
           role: 'system',
-          content: 'אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות.'
+          content: `אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
+          אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`
         },
-        {
-          role: 'user',
-          content: transcription.text
-        }
+        { role: 'user', content: transcription.text }
       ]
     });
+    
+    
 
     const answer = chatResponse.choices[0].message.content;
+    const audioFileName = padNumber(fileIndex) + '.wav';
+    const audioFilePath = path.join(uploadsDir, audioFileName);
 
-    console.log(`🤖 תשובה: ${answer}`);
+    // יצירת קובץ שמע
+    const ttsRequest = {
+      input: { text: answer },
+      voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
+      audioConfig: { audioEncoding: 'LINEAR16' },
 
-    // שמירת התוצאה במערך
+    };
+
+    const [ttsResponse] = await ttsClient.synthesizeSpeech(ttsRequest);
+    await util.promisify(fs.writeFile)(audioFilePath, ttsResponse.audioContent, 'binary');
+    console.log(`🔊 קובץ שמע נוצר: ${audioFileName}`);
+
+    // שליחה לימות
+    const uploadPath = `ivr2:/3/${audioFileName}`;
+    const yemotUploadUrl = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(uploadPath)}`;
+    const audioFileStream = fs.createReadStream(audioFilePath);
+
+    const formData = new FormData();
+    formData.append('file', audioFileStream, { filename: audioFileName });
+
+    const headers = formData.getHeaders();
+    await axios.post(yemotUploadUrl, formData, { headers });
+
+    console.log(`📤 קובץ ${audioFileName} נשלח לימות המשיח`);
+
     results.push({
       index: padNumber(fileIndex),
       transcription: transcription.text,
       answer
     });
 
-    // שמירה רק על 10 האחרונות
     if (results.length > 10) results.shift();
-
-    fileIndex++; // עדכון לאינדקס הבא
+    fileIndex++;
 
   } catch (err) {
     if (err.response && err.response.status === 404) {
-      console.log(`🔍 קובץ ${fileName} לא נמצא, מנסה שוב עוד רגע...`);
+      console.log(`🔍 קובץ ${fileName} לא נמצא, מנסה שוב...`);
     } else {
-      console.error('שגיאה כללית:', err.message);
+      console.error('שגיאה:', err.message);
     }
   } finally {
     isProcessing = false;
   }
 }
 
-// הפעלת הבדיקה כל שנייה
 setInterval(checkAndProcessNextFile, 1000);
 
-// מסלול לצפייה בתוצאות האחרונות
 app.get('/results', (req, res) => {
   res.json(results);
 });
