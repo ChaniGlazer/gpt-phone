@@ -52,6 +52,7 @@ async function checkAndProcessNextFile() {
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(localFilePath),
       model: 'whisper-1',
+      language: 'he', // הגדרת שפת התמלול כעברית
     });
 
     console.log(`🎤 תמלול: ${transcription.text}`);
