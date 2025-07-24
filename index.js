@@ -73,14 +73,14 @@ async function checkAndProcessNextFile() {
     
 
     const answer = chatResponse.choices[0].message.content;
-    const audioFileName = padNumber(fileIndex) + '.mp3';
+    const audioFileName = padNumber(fileIndex) + '.wav';
     const audioFilePath = path.join(uploadsDir, audioFileName);
 
     // יצירת קובץ שמע
     const ttsRequest = {
       input: { text: answer },
       voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
-      audioConfig: { audioEncoding: 'MP3' },
+      audioConfig: { audioEncoding: 'LINEAR16' },
 
     };
 
