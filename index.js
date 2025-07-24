@@ -57,11 +57,11 @@ async function checkAndProcessNextFile() {
     console.log(`🎤 תמלול: ${transcription.text}`);
 
     const chatResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',
-          content: `אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
+          content: `אתה עוזר דובר עברית, ענה בעברית בלבד, התשובות שלך צריכות להתאים לאמונה היהודית, בלי מילים גסות וכדומה, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
           אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`
         },
         { role: 'user', content: transcription.text }
