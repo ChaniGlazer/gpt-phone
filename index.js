@@ -80,7 +80,7 @@ async function checkAndProcessNextFile() {
     const ttsRequest = {
       input: { text: answer },
       voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
-      audioConfig: { audioEncoding: 'LINEAR16' },
+      audioConfig: { audioEncoding: 'MP3' },
 
     };
 
