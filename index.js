@@ -26,7 +26,7 @@ async function checkAndProcessNextFile() {
   if (isProcessing) return;
   isProcessing = true;
 
-  const token = process.env.YEMOT_TOKEN || '0774430795:325916039'; // שמור בטוח בקובץ .env
+  const token = process.env.YEMOT_TOKEN || '0774430795:325916039';
   const fileName = padNumber(fileIndex) + '.wav';
   const yemotPath = `ivr2:/1/${fileName}`;
   const downloadUrl = `https://www.call2all.co.il/ym/api/DownloadFile?token=${token}&path=${encodeURIComponent(yemotPath)}`;
@@ -34,7 +34,6 @@ async function checkAndProcessNextFile() {
   const localFilePath = path.join(uploadsDir, fileName);
 
   try {
-    // ודא שספריית uploads קיימת
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir);
     }
@@ -50,7 +49,6 @@ async function checkAndProcessNextFile() {
 
     console.log(`✅ קובץ ${fileName} הורד`);
 
-    // תמלול
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(localFilePath),
       model: 'whisper-1',
@@ -69,40 +67,55 @@ async function checkAndProcessNextFile() {
         { role: 'user', content: transcription.text }
       ]
     });
-    
-    
 
     const answer = chatResponse.choices[0].message.content;
-    const audioFileName = padNumber(fileIndex) + '.wav';
-    const audioFilePath = path.join(uploadsDir, audioFileName);
 
-    // יצירת קובץ שמע
-    const ttsRequest = {
+    const baseName = padNumber(fileIndex);
+    const mp3FileName = `${baseName}.mp3`;
+    const wavFileName = `${baseName}.wav`;
+    const mp3FilePath = path.join(uploadsDir, mp3FileName);
+    const wavFilePath = path.join(uploadsDir, wavFileName);
+
+    // יצירת MP3
+    const ttsRequestMP3 = {
+      input: { text: answer },
+      voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
+      audioConfig: { audioEncoding: 'MP3' },
+    };
+    const [mp3Response] = await ttsClient.synthesizeSpeech(ttsRequestMP3);
+    await util.promisify(fs.writeFile)(mp3FilePath, mp3Response.audioContent, 'binary');
+
+    // יצירת WAV
+    const ttsRequestWAV = {
       input: { text: answer },
       voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
       audioConfig: { audioEncoding: 'LINEAR16' },
-
     };
+    const [wavResponse] = await ttsClient.synthesizeSpeech(ttsRequestWAV);
+    await util.promisify(fs.writeFile)(wavFilePath, wavResponse.audioContent, 'binary');
 
-    const [ttsResponse] = await ttsClient.synthesizeSpeech(ttsRequest);
-    await util.promisify(fs.writeFile)(audioFilePath, ttsResponse.audioContent, 'binary');
-    console.log(`🔊 קובץ שמע נוצר: ${audioFileName}`);
+    console.log(`🔊 קובצי שמע נוצרו: ${mp3FileName}, ${wavFileName}`);
 
-    // שליחה לימות
-    const uploadPath = `ivr2:/3/${audioFileName}`;
-    const yemotUploadUrl = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(uploadPath)}`;
-    const audioFileStream = fs.createReadStream(audioFilePath);
+    // שליחת MP3
+    const mp3UploadPath = `ivr2:/3/${mp3FileName}`;
+    const mp3Url = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(mp3UploadPath)}`;
+    const mp3Stream = fs.createReadStream(mp3FilePath);
+    const mp3Form = new FormData();
+    mp3Form.append('file', mp3Stream, { filename: mp3FileName });
+    await axios.post(mp3Url, mp3Form, { headers: mp3Form.getHeaders() });
+    console.log(`📤 נשלח MP3: ${mp3FileName}`);
 
-    const formData = new FormData();
-    formData.append('file', audioFileStream, { filename: audioFileName });
-
-    const headers = formData.getHeaders();
-    await axios.post(yemotUploadUrl, formData, { headers });
-
-    console.log(`📤 קובץ ${audioFileName} נשלח לימות המשיח`);
+    // שליחת WAV
+    const wavUploadPath = `ivr2:/3/${wavFileName}`; // לאותה שלוחה כדי שימות ישמיע לפי הצורך
+    const wavUrl = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(wavUploadPath)}`;
+    const wavStream = fs.createReadStream(wavFilePath);
+    const wavForm = new FormData();
+    wavForm.append('file', wavStream, { filename: wavFileName });
+    await axios.post(wavUrl, wavForm, { headers: wavForm.getHeaders() });
+    console.log(`📤 נשלח WAV: ${wavFileName}`);
 
     results.push({
-      index: padNumber(fileIndex),
+      index: baseName,
       transcription: transcription.text,
       answer
     });
@@ -114,7 +127,7 @@ async function checkAndProcessNextFile() {
     if (err.response && err.response.status === 404) {
       console.log(`🔍 קובץ ${fileName} לא נמצא, מנסה שוב...`);
     } else {
-      console.error('שגיאה:', err.message);
+      console.error('❌ שגיאה:', err.message);
     }
   } finally {
     isProcessing = false;
