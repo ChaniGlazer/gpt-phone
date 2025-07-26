@@ -135,7 +135,7 @@ async function checkAndProcessNextFile() {
   }
 }
 
-setInterval(checkAndProcessNextFile, 1000);
+setInterval(checkAndProcessNextFile, 2000);
 
 app.get('/results', (req, res) => {
   res.json(results);
