@@ -52,39 +52,33 @@ async function checkAndProcessNextFile() {
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(localFilePath),
       model: 'whisper-1',
-      language: 'he', // הגדרת שפת התמלול כעברית
+      language: 'he',
     });
 
     console.log(`🎤 תמלול: ${transcription.text}`);
 
-    const axios = require('axios'); // או fetch אם אתה בסביבת דפדפן
-
-const chatResponse = await axios.post(
-  'https://api.deepseek.com/v1/chat/completions',
-  {
-    model: 'deepseek-chat', // השם של המודל ב-DeepSeek
-    messages: [
+    const chatResponse = await axios.post(
+      'https://api.deepseek.com/v1/chat/completions',
       {
-        role: 'system',
-        content: `אתה עוזר דובר עברית, ענה בעברית בלבד, התשובות שלך צריכות להתאים לאמונה היהודית, תצא מנקודת הנחה שהמאזין שלך הוא יהודי מאמין מהעם היהודי ותענה תשובות מוחלטות בלי להוסיף שהתשובה היא לפי העם היהודי או לפי האמונה היהודית וכדומה, בלי מילים גסות וכדומה, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
-        אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`
+        model: 'deepseek-chat',
+        messages: [
+          {
+            role: 'system',
+            content: `אתה עוזר דובר עברית, ענה בעברית בלבד, התשובות שלך צריכות להתאים לאמונה היהודית, תצא מנקודת הנחה שהמאזין שלך הוא יהודי מאמין מהעם היהודי ותענה תשובות מוחלטות בלי להוסיף שהתשובה היא לפי העם היהודי או לפי האמונה היהודית וכדומה, בלי מילים גסות וכדומה, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`
+          },
+          { role: 'user', content: transcription.text }
+        ],
+        stream: false
       },
-      { role: 'user', content: transcription.text }
-    ],
-    stream: false // אם אתה רוצה תשובה מיידית (ללא streaming)
-  },
-  {
-    headers: {
-      'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`, // המפתח API שלך
-      'Content-Type': 'application/json'
-    }
-  }
-);
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-console.log(chatResponse.data.choices[0].message.content);
-    });
-
-    const answer = chatResponse.choices[0].message.content;
+    const answer = chatResponse.data.choices[0].message.content;
 
     const baseName = padNumber(fileIndex);
     const mp3FileName = `${baseName}.mp3`;
@@ -92,7 +86,6 @@ console.log(chatResponse.data.choices[0].message.content);
     const mp3FilePath = path.join(uploadsDir, mp3FileName);
     const wavFilePath = path.join(uploadsDir, wavFileName);
 
-    // יצירת MP3
     const ttsRequestMP3 = {
       input: { text: answer },
       voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
@@ -101,7 +94,6 @@ console.log(chatResponse.data.choices[0].message.content);
     const [mp3Response] = await ttsClient.synthesizeSpeech(ttsRequestMP3);
     await util.promisify(fs.writeFile)(mp3FilePath, mp3Response.audioContent, 'binary');
 
-    // יצירת WAV
     const ttsRequestWAV = {
       input: { text: answer },
       voice: { languageCode: 'he-IL', ssmlGender: 'FEMALE' },
@@ -112,7 +104,6 @@ console.log(chatResponse.data.choices[0].message.content);
 
     console.log(`🔊 קובצי שמע נוצרו: ${mp3FileName}, ${wavFileName}`);
 
-    // שליחת MP3
     const mp3UploadPath = `ivr2:/3/${mp3FileName}`;
     const mp3Url = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(mp3UploadPath)}`;
     const mp3Stream = fs.createReadStream(mp3FilePath);
@@ -121,8 +112,7 @@ console.log(chatResponse.data.choices[0].message.content);
     await axios.post(mp3Url, mp3Form, { headers: mp3Form.getHeaders() });
     console.log(`📤 נשלח MP3: ${mp3FileName}`);
 
-    // שליחת WAV
-    const wavUploadPath = `ivr2:/3/${wavFileName}`; // לאותה שלוחה כדי שימות ישמיע לפי הצורך
+    const wavUploadPath = `ivr2:/3/${wavFileName}`;
     const wavUrl = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(wavUploadPath)}`;
     const wavStream = fs.createReadStream(wavFilePath);
     const wavForm = new FormData();
@@ -150,11 +140,24 @@ console.log(chatResponse.data.choices[0].message.content);
   }
 }
 
-setInterval(checkAndProcessNextFile, 2000);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/trigger', async (req, res) => {
+  console.log('📩 התקבלה בקשה מימות');
+  await checkAndProcessNextFile();
+  res.send('OK');
+});
 
 app.get('/results', (req, res) => {
   res.json(results);
 });
+
+app.get('/', (req, res) => {
+  res.send('✅ השרת פעיל');
+});
+
+setInterval(checkAndProcessNextFile, 2000);
 
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
