@@ -82,7 +82,7 @@ const chatResponse = await axios.post(
 );
 
 console.log(chatResponse.data.choices[0].message.content);
-    });
+  
 
     const answer = chatResponse.choices[0].message.content;
 
