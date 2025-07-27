@@ -145,9 +145,12 @@ app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
 });
 
+
+
 async function selfPing() {
   try {
     const url = process.env.SELF_PING_URL || `http://localhost:${port}/`;
+    console.log(`מבצע פינג עצמי לכתובת: ${url}`);
     await axios.get(url);
     console.log(`✅ פינג עצמי הצליח ל-${url}`);
   } catch (err) {
