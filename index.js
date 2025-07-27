@@ -38,23 +38,9 @@ async function checkAndProcessNextFile() {
       fs.mkdirSync(uploadsDir);
     }
 
-    const fs = require('fs');
-    const path = require('path');
-
-    const downloadsDir = path.join(__dirname, 'downloads');
-
-    // ודא שתקיית downloads קיימת
-    if (!fs.existsSync(downloadsDir)) {
-    fs.mkdirSync(downloadsDir, { recursive: true });
-    }
-
-    
-    console.log(`🔄 מוריד קובץ: ${fileName}`);
     const response = await axios.get(downloadUrl, { responseType: 'stream' });
     const writer = fs.createWriteStream(localFilePath);
     response.data.pipe(writer);
-
-    
 
     await new Promise((resolve, reject) => {
       writer.on('finish', resolve);
@@ -63,39 +49,42 @@ async function checkAndProcessNextFile() {
 
     console.log(`✅ קובץ ${fileName} הורד`);
 
-    console.log('🔄 מתחיל תמלול...');
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(localFilePath),
       model: 'whisper-1',
-      language: 'he',
+      language: 'he', // הגדרת שפת התמלול כעברית
     });
 
     console.log(`🎤 תמלול: ${transcription.text}`);
 
-    console.log('🔄 שולח שאלה ל-GPT...');
-    const chatResponse = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `אתה עוזר דובר עברית, ענה בעברית בלבד, התשובות שלך צריכות להתאים לאמונה היהודית, תצא מנקודת הנחה שהמאזין שלך הוא יהודי מאמין מהעם היהודי ותענה תשובות מוחלטות בלי להוסיף שהתשובה היא לפי העם היהודי או לפי האמונה היהודית וכדומה, בלי מילים גסות וכדומה, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`,
-          },
-          { role: 'user', content: transcription.text },
-        ],
-        stream: false,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const axios = require('axios'); // או fetch אם אתה בסביבת דפדפן
 
-    const answer = chatResponse.data.choices[0].message.content;
-    console.log(`💬 תשובה מ-GPT: ${answer}`);
+const chatResponse = await axios.post(
+  'https://api.deepseek.com/v1/chat/completions',
+  {
+    model: 'deepseek-chat', // השם של המודל ב-DeepSeek
+    messages: [
+      {
+        role: 'system',
+        content: `אתה עוזר דובר עברית, ענה בעברית בלבד, התשובות שלך צריכות להתאים לאמונה היהודית, תצא מנקודת הנחה שהמאזין שלך הוא יהודי מאמין מהעם היהודי ותענה תשובות מוחלטות בלי להוסיף שהתשובה היא לפי העם היהודי או לפי האמונה היהודית וכדומה, בלי מילים גסות וכדומה, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
+        אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`
+      },
+      { role: 'user', content: transcription.text }
+    ],
+    stream: false // אם אתה רוצה תשובה מיידית (ללא streaming)
+  },
+  {
+    headers: {
+      'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`, // המפתח API שלך
+      'Content-Type': 'application/json'
+    }
+  }
+);
+
+console.log(chatResponse.data.choices[0].message.content);
+    });
+
+    const answer = chatResponse.choices[0].message.content;
 
     const baseName = padNumber(fileIndex);
     const mp3FileName = `${baseName}.mp3`;
@@ -133,7 +122,7 @@ async function checkAndProcessNextFile() {
     console.log(`📤 נשלח MP3: ${mp3FileName}`);
 
     // שליחת WAV
-    const wavUploadPath = `ivr2:/3/${wavFileName}`;
+    const wavUploadPath = `ivr2:/3/${wavFileName}`; // לאותה שלוחה כדי שימות ישמיע לפי הצורך
     const wavUrl = `https://www.call2all.co.il/ym/api/UploadFile?token=${token}&path=${encodeURIComponent(wavUploadPath)}`;
     const wavStream = fs.createReadStream(wavFilePath);
     const wavForm = new FormData();
@@ -161,26 +150,11 @@ async function checkAndProcessNextFile() {
   }
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// נקודת קצה להפעלת תהליך עיבוד הקובץ רק כשמקבלים קריאה מבחוץ
-app.get('/trigger', async (req, res) => {
-  console.log('📩 התקבלה בקשה מימות');
-  await checkAndProcessNextFile();
-  res.send('OK');
-});
+setInterval(checkAndProcessNextFile, 2000);
 
 app.get('/results', (req, res) => {
   res.json(results);
 });
-
-app.get('/', (req, res) => {
-  res.send('✅ השרת פעיל');
-});
-
-// השורה הזו הוסרה כדי לא לבצע בדיקה אוטומטית כל כמה שניות
-// setTimeout(checkAndProcessNextFile, 2000);
 
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
