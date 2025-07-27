@@ -144,3 +144,17 @@ app.get('/results', (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
 });
+
+async function selfPing() {
+  try {
+    const url = process.env.SELF_PING_URL || `http://localhost:${port}/`;
+    await axios.get(url);
+    console.log(`✅ פינג עצמי הצליח ל-${url}`);
+  } catch (err) {
+    console.error('❌ שגיאה בפינג עצמי:', err.message);
+  }
+}
+
+// הפעלת הפינג העצמי כל דקה
+setInterval(selfPing, 60 * 1000);
+
