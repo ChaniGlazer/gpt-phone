@@ -141,6 +141,11 @@ app.get('/results', (req, res) => {
   res.json(results);
 });
 
+app.get('/', (req, res) => {
+  res.send('השרת פעיל');
+});
+
+
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
 });
