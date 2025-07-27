@@ -151,6 +151,7 @@ async function checkAndProcessNextFile() {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// נקודת קצה להפעלת תהליך עיבוד הקובץ רק כשמקבלים קריאה מבחוץ
 app.get('/trigger', async (req, res) => {
   console.log('📩 התקבלה בקשה מימות');
   await checkAndProcessNextFile();
@@ -165,8 +166,8 @@ app.get('/', (req, res) => {
   res.send('✅ השרת פעיל');
 });
 
-// בדיקה אוטומטית כל 2 שניות
-setInterval(checkAndProcessNextFile, 2000);
+// השורה הזו הוסרה כדי לא לבצע בדיקה אוטומטית כל כמה שניות
+// setTimeout(checkAndProcessNextFile, 2000);
 
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
