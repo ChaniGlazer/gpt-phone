@@ -38,10 +38,23 @@ async function checkAndProcessNextFile() {
       fs.mkdirSync(uploadsDir);
     }
 
+    const fs = require('fs');
+    const path = require('path');
+
+    const downloadsDir = path.join(__dirname, 'downloads');
+
+    // ודא שתקיית downloads קיימת
+    if (!fs.existsSync(downloadsDir)) {
+    fs.mkdirSync(downloadsDir, { recursive: true });
+    }
+
+    
     console.log(`🔄 מוריד קובץ: ${fileName}`);
     const response = await axios.get(downloadUrl, { responseType: 'stream' });
     const writer = fs.createWriteStream(localFilePath);
     response.data.pipe(writer);
+
+    
 
     await new Promise((resolve, reject) => {
       writer.on('finish', resolve);
