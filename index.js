@@ -57,8 +57,7 @@ async function checkAndProcessNextFile() {
 
     console.log(`🎤 תמלול: ${transcription.text}`);
 
-    const axios = require('axios'); // או fetch אם אתה בסביבת דפדפן
-
+  
 const chatResponse = await axios.post(
   'https://api.deepseek.com/v1/chat/completions',
   {
