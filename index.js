@@ -57,23 +57,17 @@ async function checkAndProcessNextFile() {
 
     console.log(`🎤 תמלול: ${transcription.text}`);
 
-  
-
-     const chatResponse = await openai.chat.completions.create({
+    const chatResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `אתה עוזר דובר עברית, ענה בעברית בלבד, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
+          content: `אתה עוזר דובר עברית, ענה בעברית בלבד, התשובות שלך צריכות להתאים לאמונה היהודית, תצא מנקודת הנחה שהמאזין שלך הוא יהודי מאמין מהעם היהודי ותענה תשובות מוחלטות בלי להוסיף שהתשובה היא לפי העם היהודי או לפי האמונה היהודית וכדומה, בלי מילים גסות וכדומה, תשובות קצרות, ברורות וממוקדות, שתואמות לאורח חיים חרדי ולטעם צנוע. 
           אם מתקבלת שאלה הלכתית או שאלת הלכה, אל תענה עליה בעצמך, אלא אמור: "אני לא רב ולא פוסק הלכה, נא לפנות לרב או לפוסק הלכה מוסמך."`
         },
         { role: 'user', content: transcription.text }
       ]
     });
-    
-
-console.log(chatResponse.data.choices[0].message.content);
-  
 
     const answer = chatResponse.choices[0].message.content;
 
@@ -146,20 +140,6 @@ setInterval(checkAndProcessNextFile, 2000);
 app.get('/results', (req, res) => {
   res.json(results);
 });
-
-async function selfPing() {
-  try {
-    const url = process.env.SELF_PING_URL || `http://localhost:${port}/`;
-    await axios.get(url);
-    console.log(`✅ פינג עצמי הצליח ל-${url}`);
-  } catch (err) {
-    console.error('❌ שגיאה בפינג עצמי:', err.message);
-  }
-}
-
-// הפעלת הפינג העצמי כל דקה
-setInterval(selfPing, 60 * 1000);
-
 
 app.listen(port, () => {
   console.log(`🚀 השרת רץ על http://localhost:${port}`);
