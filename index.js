@@ -135,7 +135,7 @@ async function checkAndProcessNextFile() {
   }
 }
 
-setInterval(checkAndProcessNextFile, 2000);
+setInterval(checkAndProcessNextFile, 700);
 
 app.get('/results', (req, res) => {
   res.json(results);
@@ -164,5 +164,5 @@ async function selfPing() {
 }
 
 // הפעלת הפינג העצמי כל דקה
-setInterval(selfPing, 60 * 1000);
+setInterval(selfPing, 60 * 10000);
 
